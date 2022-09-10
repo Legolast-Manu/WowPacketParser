@@ -67,6 +67,9 @@ namespace WowPacketParser.Parsing.Parsers
             LastGossipOption.ActionPoiId = gossipPOIID;
             TempGossipOptionPOI.ActionPoiId = gossipPOIID;
 
+            if (!Settings.SQLOutputFlag.HasAnyFlagBit(SQLOutput.gossip_menu_option))
+                return;
+
             if (!TempGossipOptionPOI.HasSelection)
                 return;
 
@@ -89,6 +92,9 @@ namespace WowPacketParser.Parsing.Parsers
 
         public static void UpdateLastGossipOptionActionMessage(TimeSpan timeSpan, uint? menuId)
         {
+            if (!Settings.SQLOutputFlag.HasAnyFlagBit(SQLOutput.gossip_menu_option))
+                return;
+
             if (!LastGossipOption.HasSelection)
                 return;
 
@@ -111,6 +117,19 @@ namespace WowPacketParser.Parsing.Parsers
             {
                 LastGossipOption.Reset();
                 TempGossipOptionPOI.Reset();
+            }
+        }
+
+        public static void AddGossipAddon(uint menuID, int friendshipFactionID, WowGuid guid, TimeSpan timeSpan)
+        {
+            if (friendshipFactionID > 0)
+            {
+                GossipMenuAddon gossipMenuAddon = new();
+                gossipMenuAddon.MenuID = menuID;
+                gossipMenuAddon.FriendshipFactionID = friendshipFactionID;
+                gossipMenuAddon.ObjectType = guid.GetObjectType();
+                gossipMenuAddon.ObjectEntry = guid.GetEntry();
+                Storage.GossipMenuAddons.Add(gossipMenuAddon, timeSpan);
             }
         }
 
@@ -538,6 +557,25 @@ namespace WowPacketParser.Parsing.Parsers
             TempGossipOptionPOI.Guid = LastGossipOption.Guid;
         }
 
+        public static GossipQuestOption ReadGossipQuestTextData(Packet packet, params object[] idx)
+        {
+            var gossipQuest = new GossipQuestOption();
+            gossipQuest.QuestId = (uint)packet.ReadInt32("QuestID", idx);
+            packet.ReadInt32("QuestType", idx);
+            packet.ReadInt32("QuestLevel", idx);
+
+            if (ClientVersion.AddedInVersion(ClientVersionBuild.V3_3_3_11685))
+                packet.ReadUInt32E<QuestFlags>("Flags", idx);
+            if (ClientVersion.AddedInVersion(ClientVersionBuild.V5_1_0_16309))
+                packet.ReadUInt32E<QuestFlagsEx>("FlagsEx", idx);
+
+            if (ClientVersion.AddedInVersion(ClientVersionBuild.V3_3_3_11685))
+                packet.ReadBool("Repeatable", idx);
+
+            gossipQuest.Title = packet.ReadCString("Title", idx);
+            return gossipQuest;
+        }
+
         [HasSniffData]
         [Parser(Opcode.SMSG_GOSSIP_MESSAGE)]
         public static void HandleNpcGossip(Packet packet)
@@ -555,7 +593,11 @@ namespace WowPacketParser.Parsing.Parsers
             gossip.MenuID = packetGossip.MenuId = menuId;
 
             if (ClientVersion.AddedInVersion(ClientType.MistsOfPandaria))
-                packet.ReadUInt32("Friendship Faction");
+            {
+                uint friendshipFactionID = packet.ReadUInt32("Friendship Faction");
+                AddGossipAddon(packetGossip.MenuId, (int)friendshipFactionID, guid, packet.TimeSpan);
+
+            }
 
             gossip.TextID = packetGossip.TextId = packet.ReadUInt32("Text Id");
 
@@ -591,20 +633,9 @@ namespace WowPacketParser.Parsing.Parsers
                 });
             }
 
-            uint questgossips = packet.ReadUInt32("Amount of Quest gossips");
-            for (int i = 0; i < questgossips; i++)
-            {
-                packet.ReadUInt32<QuestId>("Quest ID", i);
-
-                packet.ReadUInt32("Icon", i);
-                packet.ReadInt32("Level", i);
-                packet.ReadUInt32E<QuestFlags>("Flags", i);
-                if (ClientVersion.AddedInVersion(ClientVersionBuild.V5_1_0_16309))
-                    packet.ReadUInt32E<QuestFlagsEx>("Flags 2", i);
-
-                packet.ReadBool("Change Icon", i);
-                packet.ReadCString("Title", i);
-            }
+            uint questsCount = packet.ReadUInt32("GossipQuestsCount");
+            for (int i = 0; i < questsCount; i++)
+                ReadGossipQuestTextData(packet, i, "GossipQuests");
 
             if (guid.GetObjectType() == ObjectType.Unit)
             {
@@ -621,6 +652,8 @@ namespace WowPacketParser.Parsing.Parsers
         [Parser(Opcode.SMSG_GOSSIP_COMPLETE)]
         public static void HandleGossipComplete(Packet packet)
         {
+            if (ClientVersion.AddedInVersion(ClientVersionBuild.V9_2_0_42423))
+                packet.ReadBit("SuppressSound");
         }
 
         [Parser(Opcode.SMSG_THREAT_UPDATE)]

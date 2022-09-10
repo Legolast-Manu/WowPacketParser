@@ -17,11 +17,14 @@ namespace WowPacketParser.SQL.Builders
         {
             mapId = -1;
 
-            WoWObject transport;
-            if (!Storage.Objects.TryGetValue(@object.Movement.TransportGuid, out transport))
+            if (@object.Movement.Transport == null)
                 return false;
 
-            if (transport.Type == ObjectType.Player || transport.Type == ObjectType.ActivePlayer)
+            WoWObject transport;
+            if (!Storage.Objects.TryGetValue(@object.Movement.Transport.Guid, out transport))
+                return false;
+
+            if (transport.Type != ObjectType.GameObject)
                 return false;
 
             if (SQLConnector.Enabled)
@@ -140,11 +143,17 @@ namespace WowPacketParser.SQL.Builders
                 }
                 else
                 {
-                    row.Data.PositionX = creature.Movement.TransportOffset.X;
-                    row.Data.PositionY = creature.Movement.TransportOffset.Y;
-                    row.Data.PositionZ = creature.Movement.TransportOffset.Z;
-                    row.Data.Orientation = creature.Movement.TransportOffset.O;
+                    row.Data.PositionX = creature.Movement.Transport.Offset.X;
+                    row.Data.PositionY = creature.Movement.Transport.Offset.Y;
+                    row.Data.PositionZ = creature.Movement.Transport.Offset.Z;
+                    row.Data.Orientation = creature.Movement.Transport.Offset.O;
                 }
+
+                // Recalculate PositionZ if creature is hovering
+                if (creature.UnitData.HoverHeight > 0)
+                    if ((ClientVersion.Expansion == ClientType.WrathOfTheLichKing && creature.Movement.Flags.HasAnyFlag(MovementFlag.Hover)) ||
+                        (ClientVersion.Expansion >= ClientType.Cataclysm && creature.Movement.Flags.HasAnyFlag(Enums.v4.MovementFlag.Hover)))
+                        row.Data.PositionZ -= creature.UnitData.HoverHeight;
 
                 row.Data.SpawnTimeSecs = creature.GetDefaultSpawnTime(creature.DifficultyID);
                 row.Data.WanderDistance = wanderDistance;
@@ -346,10 +355,10 @@ namespace WowPacketParser.SQL.Builders
                 }
                 else
                 {
-                    row.Data.PositionX = go.Movement.TransportOffset.X;
-                    row.Data.PositionY = go.Movement.TransportOffset.Y;
-                    row.Data.PositionZ = go.Movement.TransportOffset.Z;
-                    row.Data.Orientation = go.Movement.TransportOffset.O;
+                    row.Data.PositionX = go.Movement.Transport.Offset.X;
+                    row.Data.PositionY = go.Movement.Transport.Offset.Y;
+                    row.Data.PositionZ = go.Movement.Transport.Offset.Z;
+                    row.Data.Orientation = go.Movement.Transport.Offset.O;
                 }
 
                 var rotation = go.GetStaticRotation();

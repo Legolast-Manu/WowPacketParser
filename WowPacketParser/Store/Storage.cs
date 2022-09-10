@@ -30,6 +30,8 @@ namespace WowPacketParser.Store
         public static readonly DataBag<ConversationTemplate> ConversationTemplates = new DataBag<ConversationTemplate>(new List<SQLOutput> { SQLOutput.conversation_template });
         public static readonly DataBag<GameObjectTemplate> GameObjectTemplates = new DataBag<GameObjectTemplate>(new List<SQLOutput> { SQLOutput.gameobject_template });
         public static readonly DataBag<GameObjectTemplateQuestItem> GameObjectTemplateQuestItems = new DataBag<GameObjectTemplateQuestItem>(new List<SQLOutput> { SQLOutput.gameobject_template });
+        public static readonly DataBag<GameObjectQuestStarter> GameObjectQuestStarters = new DataBag<GameObjectQuestStarter>(new List<SQLOutput> { SQLOutput.gameobject_queststarter });
+        public static readonly DataBag<GameObjectQuestEnder> GameObjectQuestEnders = new DataBag<GameObjectQuestEnder>(new List<SQLOutput> { SQLOutput.gameobject_questender });
         public static readonly DataBag<ItemTemplate> ItemTemplates = new DataBag<ItemTemplate>(new List<SQLOutput> { SQLOutput.item_template });
         public static readonly DataBag<QuestTemplate> QuestTemplates = new DataBag<QuestTemplate>(new List<SQLOutput> { SQLOutput.quest_template });
         public static readonly DataBag<QuestObjective> QuestObjectives = new DataBag<QuestObjective>(new List<SQLOutput> { SQLOutput.quest_template });
@@ -42,7 +44,8 @@ namespace WowPacketParser.Store
         public static readonly DataBag<CreatureTemplateScaling> CreatureTemplateScalings = new DataBag<CreatureTemplateScaling>(new List<SQLOutput> { SQLOutput.creature_template_scaling });
         public static readonly DataBag<CreatureTemplateModel> CreatureTemplateModels = new DataBag<CreatureTemplateModel>(new List<SQLOutput> { SQLOutput.creature_template });
         public static readonly DataBag<CreatureTemplateSpell> CreatureTemplateSpells = new DataBag<CreatureTemplateSpell>(new List<SQLOutput> { SQLOutput.creature_template });
-
+        public static readonly DataBag<CreatureQuestStarter> CreatureQuestStarters = new DataBag<CreatureQuestStarter>(new List<SQLOutput> { SQLOutput.creature_queststarter });
+        public static readonly DataBag<CreatureQuestEnder> CreatureQuestEnders = new DataBag<CreatureQuestEnder>(new List<SQLOutput> { SQLOutput.creature_questender });
         // Vendor & trainer
         public static readonly DataBag<NpcTrainer> NpcTrainers = new DataBag<NpcTrainer>(new List<SQLOutput> { SQLOutput.npc_trainer }); // legacy 3.3.5 support
         public static readonly DataBag<NpcVendor> NpcVendors = new DataBag<NpcVendor>(new List<SQLOutput> { SQLOutput.npc_vendor });
@@ -54,6 +57,7 @@ namespace WowPacketParser.Store
         public static readonly DataBag<PageText> PageTexts = new DataBag<PageText>(new List<SQLOutput> { SQLOutput.page_text });
         public static readonly DataBag<NpcText> NpcTexts = new DataBag<NpcText>(new List<SQLOutput> { SQLOutput.npc_text });
         public static readonly DataBag<NpcTextMop> NpcTextsMop = new DataBag<NpcTextMop>(new List<SQLOutput> { SQLOutput.npc_text });
+        public static readonly StoreDictionary<uint /*menuID*/, NpcText925> GossipToNpcTextMap = new(new List<SQLOutput> { SQLOutput.npc_text });
 
         // Creature text (says, yells, etc.)
         public static readonly StoreMulti<uint, CreatureText> CreatureTexts = new StoreMulti<uint, CreatureText>(new List<SQLOutput> { SQLOutput.creature_text });
@@ -77,6 +81,8 @@ namespace WowPacketParser.Store
         // Gossips (MenuId, TextId)
         public static readonly Dictionary<uint, uint> CreatureDefaultGossips = new Dictionary<uint, uint>();
         public static readonly DataBag<GossipMenu> Gossips = new DataBag<GossipMenu>(new List<SQLOutput> { SQLOutput.gossip_menu });
+        public static readonly DataBag<GossipMenu925> Gossips925 = new DataBag<GossipMenu925>(new List<SQLOutput> { SQLOutput.gossip_menu });
+        public static readonly DataBag<GossipMenuAddon> GossipMenuAddons = new DataBag<GossipMenuAddon>(new List<SQLOutput> { SQLOutput.gossip_menu_addon });
         public static readonly StoreDictionary<(uint?, uint?), GossipMenuOption> GossipMenuOptions = new StoreDictionary<(uint?, uint?), GossipMenuOption>(new List<SQLOutput> { SQLOutput.gossip_menu_option });
 
         // Quest POI (QuestId, Id)
@@ -174,6 +180,7 @@ namespace WowPacketParser.Store
             PageTexts.Clear();
             NpcTexts.Clear();
             NpcTextsMop.Clear();
+            GossipToNpcTextMap.Clear();
 
             CreatureTexts.Clear();
 
@@ -189,6 +196,8 @@ namespace WowPacketParser.Store
             StartPositions.Clear();
 
             Gossips.Clear();
+            Gossips925.Clear();
+            GossipMenuAddons.Clear();
             GossipMenuOptions.Clear();
 
             QuestPOIs.Clear();

@@ -1,8 +1,10 @@
 using System;
+using System.Globalization;
 using WowPacketParser.Enums;
 using WowPacketParser.Misc;
 using WowPacketParser.Parsing;
 using WowPacketParser.Proto;
+using WowPacketParser.SQL;
 using WowPacketParser.Store;
 using WowPacketParser.Store.Objects;
 using CoreParsers = WowPacketParser.Parsing.Parsers;
@@ -88,6 +90,109 @@ namespace WowPacketParserModule.V9_0_1_36216.Parsers
         {
             packet.ReadPackedGuid128("NpcGUID");
             packet.ReadInt32("UiMapID");
+        }
+
+        public static void AddBroadcastTextToGossip(uint menuID, uint broadcastTextID, WowGuid guid)
+        {
+            NpcText925 npcText = null;
+            if (!Storage.GossipToNpcTextMap.TryGetValue(menuID, out npcText))
+            {
+                npcText = new NpcText925();
+                npcText.ObjectType = guid.GetObjectType();
+                npcText.ObjectEntry = guid.GetEntry();
+                Storage.GossipToNpcTextMap.Add(menuID, npcText);
+            }
+            npcText.AddBroadcastTextIfNotExists(broadcastTextID, 1.0f);
+        }
+
+        [HasSniffData]
+        [Parser(Opcode.SMSG_GOSSIP_MESSAGE, ClientVersionBuild.V9_2_5_43903)]
+        public static void HandleNpcGossip(Packet packet)
+        {
+            PacketGossipMessage packetGossip = packet.Holder.GossipMessage = new();
+
+            WowGuid guid = packet.ReadPackedGuid128("GossipGUID");
+            packetGossip.GossipSource = guid;
+
+            int menuId = packet.ReadInt32("GossipID");
+            packetGossip.MenuId = (uint)menuId;
+
+            int friendshipFactionID = packet.ReadInt32("FriendshipFactionID");
+            CoreParsers.NpcHandler.AddGossipAddon(packetGossip.MenuId, friendshipFactionID, guid, packet.TimeSpan);
+
+            var broadcastTextID = (uint)packet.ReadInt32("BroadcastTextID");
+
+            var npcTextId = SQLDatabase.GetNPCTextIDByMenuIDAndBroadcastText(menuId, broadcastTextID);
+            if (npcTextId != 0)
+            {
+                GossipMenu gossip = new();
+                gossip.MenuID = packetGossip.MenuId;
+                gossip.TextID = packetGossip.TextId = npcTextId;
+                gossip.ObjectType = guid.GetObjectType();
+                gossip.ObjectEntry = guid.GetEntry();
+                Storage.Gossips.Add(gossip, packet.TimeSpan);
+            }
+            else
+                AddBroadcastTextToGossip(packetGossip.MenuId, broadcastTextID, guid);
+
+            int optionsCount = packet.ReadInt32("GossipOptionsCount");
+            int questsCount = packet.ReadInt32("GossipQuestsCount");
+
+            for (int i = 0; i < optionsCount; ++i)
+                packetGossip.Options.Add(V6_0_2_19033.Parsers.NpcHandler.ReadGossipOptionsData((uint)menuId, guid, packet, i, "GossipOptions"));
+
+            for (int i = 0; i < questsCount; ++i)
+                packetGossip.Quests.Add(V7_0_3_22248.Parsers.NpcHandler.ReadGossipQuestTextData(packet, i, "GossipQuests"));
+
+            if (guid.GetObjectType() == ObjectType.Unit)
+            {
+                if (!Storage.CreatureDefaultGossips.ContainsKey(guid.GetEntry()))
+                    Storage.CreatureDefaultGossips.Add(guid.GetEntry(), (uint)menuId);
+            }
+
+            CoreParsers.NpcHandler.UpdateLastGossipOptionActionMessage(packet.TimeSpan, (uint)menuId);
+
+            packet.AddSniffData(StoreNameType.Gossip, menuId, guid.GetEntry().ToString(CultureInfo.InvariantCulture));
+        }
+
+        [Parser(Opcode.SMSG_VENDOR_INVENTORY)]
+        public static void HandleVendorInventory(Packet packet)
+        {
+            uint entry = packet.ReadPackedGuid128("VendorGUID").GetEntry();
+            packet.ReadByte("Reason");
+            int count = packet.ReadInt32("VendorItems");
+
+            for (int i = 0; i < count; ++i)
+            {
+                NpcVendor vendor = new NpcVendor
+                {
+                    Entry = entry,
+                    Slot = packet.ReadInt32("Muid", i),
+                    Type = (uint)packet.ReadInt32("Type", i)
+                };
+
+                int maxCount = packet.ReadInt32("Quantity", i);
+                packet.ReadInt64("Price", i);
+                packet.ReadInt32("Durability", i);
+                int buyCount = packet.ReadInt32("StackCount", i);
+                vendor.ExtendedCost = packet.ReadUInt32("ExtendedCostID", i);
+                vendor.PlayerConditionID = packet.ReadUInt32("PlayerConditionFailed", i);
+
+                vendor.Item = Substructures.ItemHandler.ReadItemInstance(packet, i).ItemID;
+                packet.ResetBitReader();
+                packet.ReadBit("Locked", i);
+                vendor.IgnoreFiltering = packet.ReadBit("DoNotFilterOnVendor", i);
+                packet.ReadBit("Refundable", i);
+
+                vendor.MaxCount = maxCount == -1 ? 0 : (uint)maxCount; // TDB
+                if (vendor.Type == 2)
+                    vendor.MaxCount = (uint)buyCount;
+
+                Storage.NpcVendors.Add(vendor, packet.TimeSpan);
+            }
+
+            CoreParsers.NpcHandler.LastGossipOption.Reset();
+            CoreParsers.NpcHandler.TempGossipOptionPOI.Reset();
         }
     }
 }
